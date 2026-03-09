@@ -23,14 +23,20 @@ class NotifierTests(unittest.TestCase):
             "https://discord.com/api/webhooks/123/abc",
             timeout_seconds=10.0,
         )
-        notification = Notification(title="Open the windows", body="Now is good.")
+        notification = Notification(
+            title="Open the windows",
+            body="Now is good.",
+            mention="<@123456789012345678>",
+        )
 
         def fake_urlopen(request, timeout):
             self.assertEqual(timeout, 10.0)
             self.assertEqual(request.full_url, "https://discord.com/api/webhooks/123/abc")
             self.assertEqual(request.headers["User-agent"], "window-bot/0.1")
             payload = json.loads(request.data.decode("utf-8"))
+            self.assertIn("<@123456789012345678>", payload["content"])
             self.assertIn("Open the windows", payload["content"])
+            self.assertEqual(payload["allowed_mentions"], {"parse": [], "users": ["123456789012345678"]})
             return FakeResponse()
 
         with patch("urllib.request.urlopen", side_effect=fake_urlopen):
@@ -56,6 +62,22 @@ class NotifierTests(unittest.TestCase):
                     notifier.send(notification)
         finally:
             error.close()
+
+    def test_send_without_mention_omits_allowed_mentions(self) -> None:
+        notifier = DiscordNotifier(
+            "https://discord.com/api/webhooks/123/abc",
+            timeout_seconds=10.0,
+        )
+        notification = Notification(title="Close the windows", body="Too warm.")
+
+        def fake_urlopen(request, timeout):
+            del timeout
+            payload = json.loads(request.data.decode("utf-8"))
+            self.assertNotIn("allowed_mentions", payload)
+            return FakeResponse()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            notifier.send(notification)
 
 
 class FakeResponse:

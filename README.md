@@ -18,6 +18,7 @@ Start from [config.example.toml](/home/biggels/projects/window-bot/config.exampl
 - `temp_open_min` / `temp_open_max`
 - `humidity_open_min` / `humidity_open_max`
 - `temp_hysteresis_margin` / `humidity_hysteresis_margin`
+- optional `discord_mention` if you want the webhook message to ping a user or role
 
 Temperature thresholds use the configured `temperature_unit` (`fahrenheit` or `celsius`). Humidity values are percentages.
 
@@ -29,6 +30,14 @@ cp .env.example .env
 ```
 
 Then put the real webhook in `.env` and run against `config.toml`, not the checked-in example file.
+
+If you only allow Discord push notifications for mentions, set `discord_mention` in `config.toml` to a real Discord mention such as:
+
+```toml
+discord_mention = "<@123456789012345678>"
+```
+
+For a role mention, use `<@&ROLE_ID>`. For `@here` or `@everyone`, use those literal strings.
 
 ## Local usage
 

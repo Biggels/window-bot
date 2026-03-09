@@ -15,5 +15,11 @@ humidity_hysteresis_margin = 5
 # Preferred: set WINDOW_BOT_DISCORD_WEBHOOK_URL in your shell or systemd environment.
 # Fallback: uncomment this line and put the webhook here if you are storing the config privately.
 # discord_webhook_url = "https://discord.com/api/webhooks/your/webhook"
+
+# Optional: mention a Discord user, role, @here, or @everyone in notifications.
+# Examples:
+# discord_mention = "<@123456789012345678>"
+# discord_mention = "<@&123456789012345678>"
+# discord_mention = "@here"
 state_file = "state/window-bot-state.json"
 request_timeout_seconds = 10

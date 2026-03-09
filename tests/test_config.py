@@ -60,6 +60,23 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.discord_webhook_url, "https://discord.com/api/webhooks/456/def")
 
+    def test_load_config_reads_optional_discord_mention(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.toml"
+            config_path.write_text(
+                textwrap.dedent(CONFIG_TEMPLATE + 'discord_mention = "<@123456789012345678>"\n'),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"WINDOW_BOT_DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/123/abc"},
+                clear=False,
+            ):
+                config = load_config(config_path)
+
+        self.assertEqual(config.discord_mention, "<@123456789012345678>")
+
     def test_load_config_requires_webhook_from_env_or_config(self) -> None:
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.toml"

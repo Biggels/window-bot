@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import io
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,6 +17,7 @@ from .weather import WeatherSnapshot
 class Notification:
     title: str
     body: str
+    mention: str | None = None
 
 
 class DiscordNotifier:
@@ -24,7 +26,12 @@ class DiscordNotifier:
         self.timeout_seconds = timeout_seconds
 
     def send(self, notification: Notification) -> None:
-        payload = json.dumps({"content": f"**{notification.title}**\n{notification.body}"}).encode("utf-8")
+        content = _build_content(notification)
+        payload_dict: dict[str, object] = {"content": content}
+        allowed_mentions = _build_allowed_mentions(notification.mention)
+        if allowed_mentions is not None:
+            payload_dict["allowed_mentions"] = allowed_mentions
+        payload = json.dumps(payload_dict).encode("utf-8")
         request = urllib.request.Request(
             self.webhook_url,
             data=payload,
@@ -61,7 +68,7 @@ def build_transition_notification(
         f"{describe_threshold_bands(config)}\n"
         f"Reason: {decision.reason}"
     )
-    return Notification(title=title, body=body)
+    return Notification(title=title, body=body, mention=config.discord_mention)
 
 
 def _normalize_discord_webhook_url(webhook_url: str) -> str:
@@ -92,3 +99,26 @@ def _read_error_body(exc: urllib.error.HTTPError) -> str:
         return ""
     compact = " ".join(text.split())
     return compact[:300]
+
+
+def _build_content(notification: Notification) -> str:
+    prefix = f"{notification.mention}\n" if notification.mention else ""
+    return f"{prefix}**{notification.title}**\n{notification.body}"
+
+
+def _build_allowed_mentions(mention: str | None) -> dict[str, object] | None:
+    if not mention:
+        return None
+
+    user_match = re.fullmatch(r"<@!?(\d+)>", mention)
+    if user_match:
+        return {"parse": [], "users": [user_match.group(1)]}
+
+    role_match = re.fullmatch(r"<@&(\d+)>", mention)
+    if role_match:
+        return {"parse": [], "roles": [role_match.group(1)]}
+
+    if mention in {"@everyone", "@here"}:
+        return {"parse": ["everyone"]}
+
+    return None

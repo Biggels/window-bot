@@ -22,6 +22,7 @@ class Config:
     discord_webhook_url: str
     state_file: Path
     request_timeout_seconds: float
+    discord_mention: str | None = None
 
     @property
     def poll_interval_seconds(self) -> int:
@@ -48,6 +49,7 @@ def load_config(path: Path) -> Config:
         "discord_webhook_url",
         env_var="WINDOW_BOT_DISCORD_WEBHOOK_URL",
     )
+    discord_mention = _optional_string(raw, "discord_mention")
     state_file = _resolve_path(path.parent, raw.get("state_file", "state/window-bot-state.json"))
     request_timeout_seconds = _require_number(raw, "request_timeout_seconds", default=10.0)
 
@@ -64,6 +66,7 @@ def load_config(path: Path) -> Config:
         temp_hysteresis_margin=temp_hysteresis_margin,
         humidity_hysteresis_margin=humidity_hysteresis_margin,
         discord_webhook_url=discord_webhook_url,
+        discord_mention=discord_mention,
         state_file=state_file,
         request_timeout_seconds=request_timeout_seconds,
     )
@@ -106,6 +109,15 @@ def _load_secret_string(raw: dict[str, object], key: str, *, env_var: str) -> st
         raise ValueError(
             f"Config key '{key}' must be a non-empty string when {env_var} is not set"
         )
+    return value.strip()
+
+
+def _optional_string(raw: dict[str, object], key: str) -> str | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Config key '{key}' must be a non-empty string when provided")
     return value.strip()
 
 
