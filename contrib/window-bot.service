@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/window-bot
+EnvironmentFile=-/etc/window-bot/window-bot.env
 ExecStart=/usr/bin/env window-bot run --config /etc/window-bot/config.toml
 Restart=always
 RestartSec=10

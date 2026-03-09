@@ -125,6 +125,7 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(persisted.last_notified_state, WindowState.OPEN)
             self.assertEqual(len(notifier.notifications), 1)
             self.assertIn("Open the windows", notifier.notifications[0].title)
+            self.assertIn("Configured open band:", notifier.notifications[0].body)
 
     def test_weather_failure_keeps_prior_state(self) -> None:
         with TemporaryDirectory() as tmpdir:

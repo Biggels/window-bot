@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import tomllib
 
@@ -42,7 +43,11 @@ def load_config(path: Path) -> Config:
     humidity_open_max = _require_number(raw, "humidity_open_max")
     temp_hysteresis_margin = _require_number(raw, "temp_hysteresis_margin")
     humidity_hysteresis_margin = _require_number(raw, "humidity_hysteresis_margin")
-    discord_webhook_url = _require_string(raw, "discord_webhook_url")
+    discord_webhook_url = _load_secret_string(
+        raw,
+        "discord_webhook_url",
+        env_var="WINDOW_BOT_DISCORD_WEBHOOK_URL",
+    )
     state_file = _resolve_path(path.parent, raw.get("state_file", "state/window-bot-state.json"))
     request_timeout_seconds = _require_number(raw, "request_timeout_seconds", default=10.0)
 
@@ -84,6 +89,23 @@ def _require_string(raw: dict[str, object], key: str) -> str:
     value = raw.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Config key '{key}' must be a non-empty string")
+    return value.strip()
+
+
+def _load_secret_string(raw: dict[str, object], key: str, *, env_var: str) -> str:
+    env_value = os.environ.get(env_var, "").strip()
+    if env_value:
+        return env_value
+
+    value = raw.get(key)
+    if value is None:
+        raise ValueError(
+            f"Config key '{key}' must be set in the config file or via the {env_var} environment variable"
+        )
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"Config key '{key}' must be a non-empty string when {env_var} is not set"
+        )
     return value.strip()
 
 

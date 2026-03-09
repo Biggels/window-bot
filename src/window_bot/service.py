@@ -6,7 +6,7 @@ import logging
 import time
 
 from .config import Config
-from .decision import WindowState, decide_window_state
+from .decision import WindowState, decide_window_state, describe_active_thresholds
 from .notifier import DiscordNotifier, build_transition_notification
 from .state import PersistedState, StateStore
 from .weather import OpenMeteoClient
@@ -57,6 +57,7 @@ class WindowBotService:
         )
 
         decision = decide_window_state(weather, self.config, previous_state)
+        LOGGER.debug("%s", describe_active_thresholds(self.config, previous_state))
         LOGGER.info("Current window state decision: %s (%s)", decision.state.value, decision.reason)
 
         if previous_state is None:

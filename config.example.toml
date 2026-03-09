@@ -1,5 +1,5 @@
-latitude = 35.80318885931079
-longitude = -78.78720369230732
+latitude = 40.7128
+longitude = -74.0060
 location_label = "Home"
 poll_interval_minutes = 10
 temperature_unit = "fahrenheit"
@@ -12,6 +12,8 @@ humidity_open_max = 60
 temp_hysteresis_margin = 2
 humidity_hysteresis_margin = 5
 
-discord_webhook_url = "https://discordapp.com/api/webhooks/1480678996260946070/ua6sU070PV4ztySLH7DI9p-v0-Dmozp1eW0BhGRbUxBi2K-nFIwX0SXG_C-VBjfLzjBW"
+# Preferred: set WINDOW_BOT_DISCORD_WEBHOOK_URL in your shell or systemd environment.
+# Fallback: uncomment this line and put the webhook here if you are storing the config privately.
+# discord_webhook_url = "https://discord.com/api/webhooks/your/webhook"
 state_file = "state/window-bot-state.json"
 request_timeout_seconds = 10
