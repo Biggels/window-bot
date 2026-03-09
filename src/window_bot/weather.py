@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timedelta, timezone
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 @dataclass(frozen=True)
@@ -54,9 +55,7 @@ class OpenMeteoClient:
 
         try:
             current = payload["current"]
-            observed_at = datetime.fromisoformat(current["time"])
-            if observed_at.tzinfo is None:
-                observed_at = observed_at.replace(tzinfo=UTC)
+            observed_at = _parse_observed_at(payload, current)
             return WeatherSnapshot(
                 temperature=float(current["temperature_2m"]),
                 humidity=float(current["relative_humidity_2m"]),
@@ -64,3 +63,27 @@ class OpenMeteoClient:
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError("Weather API response did not contain the expected current conditions") from exc
+
+
+def _parse_observed_at(payload: dict[str, object], current: dict[str, object]) -> datetime:
+    observed_at = datetime.fromisoformat(str(current["time"]))
+    if observed_at.tzinfo is not None:
+        return observed_at
+
+    tzinfo = _resolve_response_timezone(payload)
+    return observed_at.replace(tzinfo=tzinfo)
+
+
+def _resolve_response_timezone(payload: dict[str, object]) -> timezone | ZoneInfo:
+    timezone_name = payload.get("timezone")
+    if isinstance(timezone_name, str) and timezone_name.strip():
+        try:
+            return ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            pass
+
+    utc_offset_seconds = payload.get("utc_offset_seconds")
+    if isinstance(utc_offset_seconds, int | float):
+        return timezone(timedelta(seconds=float(utc_offset_seconds)))
+
+    raise RuntimeError("Weather API response did not include timezone metadata for the current observation")

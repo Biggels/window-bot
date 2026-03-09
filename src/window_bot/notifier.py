@@ -78,6 +78,10 @@ def _read_error_body(exc: urllib.error.HTTPError) -> str:
         body = exc.read()
     except OSError:
         return ""
+    finally:
+        close = getattr(exc.fp, "close", None)
+        if callable(close):
+            close()
     if isinstance(body, str):
         text = body
     elif isinstance(body, bytes):

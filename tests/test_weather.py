@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import timedelta
 import io
 import json
 import unittest
@@ -20,8 +20,10 @@ class FakeResponse(io.StringIO):
 class WeatherClientTests(unittest.TestCase):
     def test_fetch_current_weather_parses_snapshot(self) -> None:
         payload = {
+            "timezone": "America/New_York",
+            "utc_offset_seconds": -14400,
             "current": {
-                "time": "2026-03-09T12:00",
+                "time": "2026-03-09T18:00",
                 "temperature_2m": 68.5,
                 "relative_humidity_2m": 44,
             }
@@ -37,7 +39,28 @@ class WeatherClientTests(unittest.TestCase):
 
         self.assertEqual(weather.temperature, 68.5)
         self.assertEqual(weather.humidity, 44.0)
-        self.assertEqual(weather.observed_at.tzinfo, UTC)
+        self.assertEqual(weather.observed_at.isoformat(), "2026-03-09T18:00:00-04:00")
+
+    def test_fetch_current_weather_falls_back_to_utc_offset_seconds(self) -> None:
+        payload = {
+            "timezone": "Invalid/Timezone",
+            "utc_offset_seconds": -14400,
+            "current": {
+                "time": "2026-03-09T18:00",
+                "temperature_2m": 68.5,
+                "relative_humidity_2m": 44,
+            }
+        }
+        client = OpenMeteoClient(timeout_seconds=1)
+
+        with patch("urllib.request.urlopen", return_value=FakeResponse(json.dumps(payload))):
+            weather = client.fetch_current_weather(
+                latitude=40.0,
+                longitude=-73.0,
+                temperature_unit="fahrenheit",
+            )
+
+        self.assertEqual(weather.observed_at.utcoffset(), timedelta(hours=-4))
 
     def test_fetch_current_weather_rejects_bad_payload(self) -> None:
         client = OpenMeteoClient(timeout_seconds=1)

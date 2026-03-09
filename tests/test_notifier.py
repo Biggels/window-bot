@@ -50,9 +50,12 @@ class NotifierTests(unittest.TestCase):
             fp=BytesIO(b'{"message":"Unknown Webhook","code":10015}'),
         )
 
-        with patch("urllib.request.urlopen", side_effect=error):
-            with self.assertRaisesRegex(RuntimeError, "Unknown Webhook"):
-                notifier.send(notification)
+        try:
+            with patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaisesRegex(RuntimeError, "Unknown Webhook"):
+                    notifier.send(notification)
+        finally:
+            error.close()
 
 
 class FakeResponse:
