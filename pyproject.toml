@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "window-bot"
+version = "0.1.0"
+description = "A Raspberry Pi weather notifier for when to open or close windows"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "biggels" }]
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+window-bot = "window_bot.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

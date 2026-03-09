@@ -1,0 +1,17 @@
+latitude = 35.80318885931079
+longitude = -78.78720369230732
+location_label = "Home"
+poll_interval_minutes = 10
+temperature_unit = "fahrenheit"
+
+temp_open_min = 60
+temp_open_max = 74
+humidity_open_min = 20
+humidity_open_max = 60
+
+temp_hysteresis_margin = 2
+humidity_hysteresis_margin = 5
+
+discord_webhook_url = "https://discordapp.com/api/webhooks/1480678996260946070/ua6sU070PV4ztySLH7DI9p-v0-Dmozp1eW0BhGRbUxBi2K-nFIwX0SXG_C-VBjfLzjBW"
+state_file = "state/window-bot-state.json"
+request_timeout_seconds = 10
