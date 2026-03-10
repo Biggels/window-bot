@@ -12,7 +12,7 @@ Small Python service for a Raspberry Pi that polls current outdoor weather and s
 
 ## Config
 
-Start from [config.example.toml](/home/biggels/projects/window-bot/config.example.toml), copy it to an untracked `config.toml`, and adjust:
+Start from [config.example.toml](config.example.toml), copy it to an untracked `config.toml`, and adjust:
 
 - `latitude` and `longitude` for your home
 - `temp_open_min` / `temp_open_max`
@@ -63,12 +63,30 @@ uv run --env-file .env window-bot run --config config.toml
 
 ## Raspberry Pi deployment
 
-- Copy the project to the Pi.
-- Install it with `python3 -m pip install -e .` or package it however you prefer.
-- Put your config at `/etc/window-bot/config.toml`.
-- Put the webhook in `/etc/window-bot/window-bot.env` using [window-bot.env.example](/home/biggels/projects/window-bot/contrib/window-bot.env.example) as the template, then `chmod 600 /etc/window-bot/window-bot.env`.
-- Install the sample unit from [contrib/window-bot.service](/home/biggels/projects/window-bot/contrib/window-bot.service) and adjust paths if needed.
-- Enable the service with `sudo systemctl enable --now window-bot`.
+Clone and run the deploy script:
+
+```bash
+git clone <YOUR_REPO_URL> window-bot
+cd window-bot
+./deploy.sh
+```
+
+The script:
+
+- Syncs the repo to `/opt/window-bot`
+- Creates `/etc/window-bot/config.toml` (only if missing; defaults `state_file` to `/var/lib/window-bot/window-bot-state.json`)
+- Creates `/etc/window-bot/window-bot.env` (only if missing) from [contrib/window-bot.env.example](contrib/window-bot.env.example)
+- Installs/updates the systemd unit from [contrib/window-bot.service](contrib/window-bot.service)
+
+After the first install, update your settings:
+
+- Edit `/etc/window-bot/config.toml`
+- Put the webhook URL in `/etc/window-bot/window-bot.env` and keep it private (`chmod 600 /etc/window-bot/window-bot.env`)
+- Restart: `sudo systemctl restart window-bot`
+
+To deploy updates later: `git pull` then re-run `./deploy.sh`.
+
+Logs: `journalctl -u window-bot -f`
 
 If you ever paste a real webhook into a tracked file or shell history, rotate it in Discord and replace it with a new one.
 

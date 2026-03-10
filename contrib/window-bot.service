@@ -7,7 +7,8 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/window-bot
 EnvironmentFile=-/etc/window-bot/window-bot.env
-ExecStart=/usr/bin/env window-bot run --config /etc/window-bot/config.toml
+Environment=PYTHONPATH=/opt/window-bot/src
+ExecStart=/usr/bin/env python3 -m window_bot run --config /etc/window-bot/config.toml
 Restart=always
 RestartSec=10
 
