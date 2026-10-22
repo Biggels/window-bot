@@ -8,24 +8,23 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .config import Config
-from .decision import Decision, WindowState, describe_threshold_bands
-from .weather import WeatherSnapshot
-
 
 @dataclass(frozen=True)
 class Notification:
-    title: str
     body: str
     mention: str | None = None
 
 
 class DiscordNotifier:
-    def __init__(self, webhook_url: str, timeout_seconds: float) -> None:
-        self.webhook_url = _normalize_discord_webhook_url(webhook_url)
+    def __init__(self, webhook_url: str | None, timeout_seconds: float) -> None:
+        self.webhook_url = _normalize_discord_webhook_url(webhook_url) if webhook_url else None
         self.timeout_seconds = timeout_seconds
 
     def send(self, notification: Notification) -> None:
+        if self.webhook_url is None:
+            raise RuntimeError(
+                "No Discord webhook configured: set WINDOW_BOT_DISCORD_WEBHOOK_URL or discord_webhook_url"
+            )
         content = _build_content(notification)
         payload_dict: dict[str, object] = {"content": content}
         allowed_mentions = _build_allowed_mentions(notification.mention)
@@ -37,7 +36,7 @@ class DiscordNotifier:
             data=payload,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "window-bot/0.1",
+                "User-Agent": "window-bot/0.2",
             },
             method="POST",
         )
@@ -53,22 +52,6 @@ class DiscordNotifier:
             ) from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"Failed to send Discord notification: {exc}") from exc
-
-
-def build_transition_notification(
-    decision: Decision,
-    weather: WeatherSnapshot,
-    config: Config,
-) -> Notification:
-    action = "Open the windows" if decision.state is WindowState.OPEN else "Close the windows"
-    title = f"{action} at {config.location_label}"
-    body = (
-        f"Current conditions: {weather.formatted_temperature(config.temperature_unit)}, "
-        f"{weather.humidity:.0f}% humidity.\n"
-        f"{describe_threshold_bands(config)}\n"
-        f"Reason: {decision.reason}"
-    )
-    return Notification(title=title, body=body, mention=config.discord_mention)
 
 
 def _normalize_discord_webhook_url(webhook_url: str) -> str:
@@ -103,7 +86,7 @@ def _read_error_body(exc: urllib.error.HTTPError) -> str:
 
 def _build_content(notification: Notification) -> str:
     prefix = f"{notification.mention}\n" if notification.mention else ""
-    return f"{prefix}**{notification.title}**\n{notification.body}"
+    return f"{prefix}{notification.body}"
 
 
 def _build_allowed_mentions(mention: str | None) -> dict[str, object] | None:

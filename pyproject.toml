@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "window-bot"
-version = "0.1.0"
-description = "A Raspberry Pi weather notifier for when to open or close windows"
+version = "0.2.0"
+description = "A Raspberry Pi bot that plans when to open the windows and posts the plan to Discord"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "biggels" }]

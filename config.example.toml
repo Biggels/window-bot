@@ -1,16 +1,9 @@
 latitude = 40.7128
 longitude = -74.0060
 location_label = "Home"
-poll_interval_minutes = 10
 temperature_unit = "fahrenheit"
-
-temp_open_min = 60
-temp_open_max = 74
-humidity_open_min = 20
-humidity_open_max = 60
-
-temp_hysteresis_margin = 2
-humidity_hysteresis_margin = 5
+# Optional: time zone for the schedule. Defaults to the forecast's local time zone.
+# timezone = "America/New_York"
 
 # Preferred: set WINDOW_BOT_DISCORD_WEBHOOK_URL in your shell or systemd environment.
 # Fallback: uncomment this line and put the webhook here if you are storing the config privately.
@@ -23,3 +16,36 @@ humidity_hysteresis_margin = 5
 # discord_mention = "@here"
 state_file = "state/window-bot-state.json"
 request_timeout_seconds = 10
+
+# Every setting below is optional; the values shown are the defaults.
+
+[schedule]
+morning = "05:00"      # the day's plan
+midday = "12:30"       # only sent if the forecast changed the plan
+evening = "17:30"      # tonight, plus a preview of tomorrow
+quiet_start = "21:00"  # no messages, and no opening or closing, between these times
+quiet_end = "05:00"
+
+[comfort]
+heat_setpoint = 68            # your thermostat settings
+cool_setpoint = 75
+open_min_indoor_temp = 65     # how far the house may drift while the windows are open
+open_max_indoor_temp = 77
+humidity_limit = 60           # indoor RH (%) to stay under
+max_extra_hours_above_limit = 3   # extra hours above the limit openings may cause per day
+peak_humidity_limit = 75      # never push indoor RH past this (unless closed would be as bad)
+
+[plan]
+max_openings_per_day = 2
+min_opening_minutes = 30
+rain_probability_limit = 40   # %; don't open when rain is at least this likely
+
+[house]
+# Rough guesses are fine. These shape how the model expects your house to respond;
+# an indoor sensor would let them be calibrated.
+floor_area_sq_ft = 2000
+ceiling_height_ft = 8.5
+open_air_changes_per_hour = 5     # fresh-air exchange with windows open
+closed_air_changes_per_hour = 0.3 # air leakage with windows closed
+moisture_generation_kg_per_day = 8   # from people, cooking, showers (roughly 2-3 per person)
+ac_moisture_removal_kg_per_hour = 2.5  # AC dehumidification at full output

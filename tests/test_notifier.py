@@ -24,18 +24,16 @@ class NotifierTests(unittest.TestCase):
             timeout_seconds=10.0,
         )
         notification = Notification(
-            title="Open the windows",
-            body="Now is good.",
+            body="**Window plan**\n• 9–10am — air out.",
             mention="<@123456789012345678>",
         )
 
         def fake_urlopen(request, timeout):
             self.assertEqual(timeout, 10.0)
             self.assertEqual(request.full_url, "https://discord.com/api/webhooks/123/abc")
-            self.assertEqual(request.headers["User-agent"], "window-bot/0.1")
+            self.assertEqual(request.headers["User-agent"], "window-bot/0.2")
             payload = json.loads(request.data.decode("utf-8"))
-            self.assertIn("<@123456789012345678>", payload["content"])
-            self.assertIn("Open the windows", payload["content"])
+            self.assertEqual(payload["content"], "<@123456789012345678>\n**Window plan**\n• 9–10am — air out.")
             self.assertEqual(payload["allowed_mentions"], {"parse": [], "users": ["123456789012345678"]})
             return FakeResponse()
 
@@ -47,7 +45,7 @@ class NotifierTests(unittest.TestCase):
             "https://discord.com/api/webhooks/123/abc",
             timeout_seconds=10.0,
         )
-        notification = Notification(title="Open the windows", body="Now is good.")
+        notification = Notification(body="Now is good.")
         error = urllib.error.HTTPError(
             notifier.webhook_url,
             403,
@@ -63,12 +61,18 @@ class NotifierTests(unittest.TestCase):
         finally:
             error.close()
 
+    def test_send_without_webhook_raises(self) -> None:
+        notifier = DiscordNotifier(None, timeout_seconds=10.0)
+
+        with self.assertRaisesRegex(RuntimeError, "WINDOW_BOT_DISCORD_WEBHOOK_URL"):
+            notifier.send(Notification(body="hi"))
+
     def test_send_without_mention_omits_allowed_mentions(self) -> None:
         notifier = DiscordNotifier(
             "https://discord.com/api/webhooks/123/abc",
             timeout_seconds=10.0,
         )
-        notification = Notification(title="Close the windows", body="Too warm.")
+        notification = Notification(body="Too warm.")
 
         def fake_urlopen(request, timeout):
             del timeout

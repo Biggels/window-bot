@@ -1,60 +1,31 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from window_bot.config import Config
-from window_bot.decision import WindowState
 from window_bot.notifier import Notification
 from window_bot.service import ServiceDependencies, WindowBotService
-from window_bot.state import PersistedState, StateStore
-from window_bot.weather import WeatherSnapshot
+from window_bot.state import StateStore
+from window_bot.weather import WeatherSeries
 
+from helpers import TZ, config, diurnal, series
 
-def build_config(state_file: Path) -> Config:
-    return Config(
-        latitude=40.0,
-        longitude=-73.0,
-        location_label="Home",
-        poll_interval_minutes=10,
-        temperature_unit="fahrenheit",
-        temp_open_min=60.0,
-        temp_open_max=74.0,
-        humidity_open_min=20.0,
-        humidity_open_max=60.0,
-        temp_hysteresis_margin=2.0,
-        humidity_hysteresis_margin=5.0,
-        discord_webhook_url="https://discord.invalid/webhook",
-        state_file=state_file,
-        request_timeout_seconds=10.0,
-    )
-
-
-def snapshot(temp: float, humidity: float) -> WeatherSnapshot:
-    return WeatherSnapshot(
-        temperature=temp,
-        humidity=humidity,
-        observed_at=datetime(2026, 3, 9, 12, 0, tzinfo=UTC),
-    )
+DAY = datetime(2026, 5, 10, 5, 0, tzinfo=TZ)
 
 
 @dataclass
 class FakeWeatherClient:
-    weather: WeatherSnapshot | None = None
+    weather: WeatherSeries | None = None
     error: Exception | None = None
+    calls: int = 0
 
-    def fetch_current_weather(
-        self,
-        *,
-        latitude: float,
-        longitude: float,
-        temperature_unit: str,
-    ) -> WeatherSnapshot:
-        del latitude, longitude, temperature_unit
+    def fetch_forecast(self, *, latitude: float, longitude: float) -> WeatherSeries:
+        del latitude, longitude
+        self.calls += 1
         if self.error is not None:
             raise self.error
         assert self.weather is not None
@@ -74,6 +45,18 @@ class FakeNotifier:
         self.notifications.append(notification)
 
 
+class Clock:
+    def __init__(self, moment: datetime) -> None:
+        self.moment = moment
+
+    def __call__(self, tz) -> datetime:
+        return self.moment.astimezone(tz)
+
+
+def mild_weather() -> WeatherSeries:
+    return series(DAY - timedelta(days=4), temperature_f=diurnal(58, 74), dew_point_f=45)
+
+
 class ServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -83,113 +66,105 @@ class ServiceTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         logging.disable(logging.NOTSET)
 
-    def test_initial_run_persists_state_without_notification(self) -> None:
-        with TemporaryDirectory() as tmpdir:
-            state_file = Path(tmpdir) / "state.json"
-            service, notifier, store = self._build_service(
-                build_config(state_file),
-                FakeWeatherClient(weather=snapshot(68.0, 45.0)),
-                FakeNotifier(),
-            )
-
-            service.run_once()
-
-            persisted = store.load()
-            self.assertEqual(persisted.current_state, WindowState.OPEN)
-            self.assertEqual(notifier.notifications, [])
-
-    def test_transition_sends_notification_and_updates_state(self) -> None:
-        with TemporaryDirectory() as tmpdir:
-            state_file = Path(tmpdir) / "state.json"
-            store = StateStore(state_file)
-            store.save(
-                PersistedState(
-                    current_state=WindowState.CLOSED,
-                    last_notified_state=WindowState.CLOSED,
-                    last_observed_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                    updated_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                )
-            )
-            notifier = FakeNotifier()
-            service, _, store = self._build_service(
-                build_config(state_file),
-                FakeWeatherClient(weather=snapshot(68.0, 45.0)),
-                notifier,
-                store=store,
-            )
-
-            service.run_once()
-
-            persisted = store.load()
-            self.assertEqual(persisted.current_state, WindowState.OPEN)
-            self.assertEqual(persisted.last_notified_state, WindowState.OPEN)
-            self.assertEqual(len(notifier.notifications), 1)
-            self.assertIn("Open the windows", notifier.notifications[0].title)
-            self.assertIn("Configured open band:", notifier.notifications[0].body)
-
-    def test_weather_failure_keeps_prior_state(self) -> None:
-        with TemporaryDirectory() as tmpdir:
-            state_file = Path(tmpdir) / "state.json"
-            store = StateStore(state_file)
-            store.save(
-                PersistedState(
-                    current_state=WindowState.OPEN,
-                    last_notified_state=WindowState.OPEN,
-                    last_observed_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                    updated_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                )
-            )
-            notifier = FakeNotifier()
-            service, _, store = self._build_service(
-                build_config(state_file),
-                FakeWeatherClient(error=RuntimeError("boom")),
-                notifier,
-                store=store,
-            )
-
-            service.run_once()
-
-            persisted = store.load()
-            self.assertEqual(persisted.current_state, WindowState.OPEN)
-            self.assertEqual(notifier.notifications, [])
-
-    def test_notification_failure_does_not_advance_state(self) -> None:
-        with TemporaryDirectory() as tmpdir:
-            state_file = Path(tmpdir) / "state.json"
-            store = StateStore(state_file)
-            store.save(
-                PersistedState(
-                    current_state=WindowState.CLOSED,
-                    last_notified_state=WindowState.CLOSED,
-                    last_observed_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                    updated_at=datetime(2026, 3, 9, 11, 50, tzinfo=UTC),
-                )
-            )
-            service, notifier, store = self._build_service(
-                build_config(state_file),
-                FakeWeatherClient(weather=snapshot(68.0, 45.0)),
-                FakeNotifier(error=RuntimeError("discord down")),
-                store=store,
-            )
-
-            service.run_once()
-
-            persisted = store.load()
-            self.assertEqual(persisted.current_state, WindowState.CLOSED)
-            self.assertEqual(len(notifier.notifications), 0)
-
-    def _build_service(
-        self,
-        config: Config,
-        weather_client: FakeWeatherClient,
-        notifier: FakeNotifier,
-        *,
-        store: StateStore | None = None,
-    ) -> tuple[WindowBotService, FakeNotifier, StateStore]:
-        state_store = store or StateStore(config.state_file)
-        dependencies = ServiceDependencies(
-            weather_client=weather_client,
-            notifier=notifier,
-            state_store=state_store,
+    def setUp(self) -> None:
+        self.tmpdir = TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.config = config(Path(self.tmpdir.name) / "state.json")
+        self.weather = FakeWeatherClient(weather=mild_weather())
+        self.notifier = FakeNotifier()
+        self.store = StateStore(self.config.state_file)
+        self.clock = Clock(DAY)
+        self.service = WindowBotService(
+            self.config,
+            ServiceDependencies(weather_client=self.weather, notifier=self.notifier, state_store=self.store),
+            clock=self.clock,
         )
-        return WindowBotService(config, dependencies), notifier, state_store
+
+    def tick_at(self, hour: int, minute: int = 0) -> None:
+        self.clock.moment = DAY.replace(hour=hour, minute=minute)
+        self.service.tick()
+
+    def test_morning_plan_is_sent_once(self) -> None:
+        self.tick_at(5)
+        self.tick_at(5, 1)
+        self.tick_at(9)
+
+        self.assertEqual(len(self.notifier.notifications), 1)
+        self.assertTrue(self.notifier.notifications[0].body.startswith("**Window plan · Sun May 10**"))
+        state = self.store.load()
+        self.assertEqual(state.sent_slots, ("morning",))
+        self.assertTrue(state.openings)
+
+    def test_midday_is_silent_when_plan_is_unchanged(self) -> None:
+        self.tick_at(5)
+        self.tick_at(12, 30)
+
+        self.assertEqual(len(self.notifier.notifications), 1)
+        self.assertIn("midday", self.store.load().sent_slots)
+
+    def test_midday_update_when_forecast_changes(self) -> None:
+        self.tick_at(5)
+        self.weather.weather = series(
+            DAY - timedelta(days=4),
+            temperature_f=diurnal(58, 74),
+            dew_point_f=45,
+            rain_probability=lambda moment: 90 if moment >= DAY.replace(hour=13) else 0,
+        )
+        self.tick_at(12, 30)
+
+        self.assertEqual(len(self.notifier.notifications), 2)
+        self.assertTrue(self.notifier.notifications[1].body.startswith("**Plan update"))
+
+    def test_evening_message_previews_tomorrow(self) -> None:
+        self.tick_at(5)
+        self.tick_at(17, 30)
+
+        evening = self.notifier.notifications[-1].body
+        self.assertTrue(evening.startswith("**Tonight · Sun May 10**"))
+        self.assertIn("Tomorrow:", evening)
+
+    def test_late_start_sends_only_the_latest_due_message_as_a_full_plan(self) -> None:
+        self.tick_at(13)
+
+        self.assertEqual(len(self.notifier.notifications), 1)
+        self.assertTrue(self.notifier.notifications[0].body.startswith("**Window plan"))
+        self.assertEqual(set(self.store.load().sent_slots), {"morning", "midday"})
+
+    def test_nothing_is_sent_during_quiet_hours(self) -> None:
+        self.clock.moment = DAY.replace(hour=22)
+        self.service.tick()
+
+        self.assertEqual(self.notifier.notifications, [])
+        self.assertEqual(set(self.store.load().sent_slots), {"morning", "midday", "evening"})
+
+    def test_new_plan_day_resets_slots_and_remembers_openings(self) -> None:
+        self.tick_at(5)
+        first_openings = self.store.load().openings
+        self.clock.moment = DAY + timedelta(days=1)
+        self.service.tick()
+
+        state = self.store.load()
+        self.assertEqual(state.plan_day, (DAY + timedelta(days=1)).date())
+        self.assertEqual(state.sent_slots, ("morning",))
+        for opening in first_openings:
+            self.assertIn(opening, state.openings)
+        self.assertEqual(len(self.notifier.notifications), 2)
+
+    def test_notification_failure_is_retried(self) -> None:
+        self.notifier.error = RuntimeError("discord down")
+        with self.assertRaises(RuntimeError):
+            self.tick_at(5)
+        self.assertEqual(self.store.load().sent_slots, ())
+
+        self.notifier.error = None
+        self.tick_at(5, 1)
+        self.assertEqual(len(self.notifier.notifications), 1)
+
+    def test_weather_failure_is_retried(self) -> None:
+        self.weather.error = RuntimeError("weather down")
+        with self.assertRaises(RuntimeError):
+            self.tick_at(5)
+
+        self.weather.error = None
+        self.tick_at(5, 5)
+        self.assertEqual(len(self.notifier.notifications), 1)
